@@ -1,43 +1,757 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <link rel="stylesheet" href="styles.css">
-        <script src="scripty.js"></script> 
-    </head>
-    <body>
-        <!-- Tab links -->
-        <div class="tab">
-            <button class="tablinks" onclick="openAba(event, 'Home')">Home</button>
-            <button class="tablinks" onclick="openAba(event, 'Registar')">Registar</button>
-            <button class="tablinks" onclick="openAba(event, 'Historico')">Historico</button>
-            <button class="tablinks" onclick="openAba(event, 'Estatisticas')">Estatisticas</button>
-            <button class="tablinks" onclick="openAba(event, 'Configuracoes')">Configuracoes</button>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee & Water Tracker ☕💧 | Gestão de Consumo & Hidratação</title>
+    <meta name="description" content="Aplicação de rastreio de consumo de café, gastos em euros e registo diário de hidratação e consumo de água em garrafas e litros.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-mug-hot" id="brand-main-icon"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>Coffee & Water <span>Tracker</span></h1>
+                    <p class="brand-subtitle"><i class="fa-regular fa-clock"></i> <span id="app-clock">--:--:--</span> • Acompanhamento Diário</p>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <button id="btn-export-data" class="btn btn-secondary btn-icon-only" title="Exportar / Importar Dados">
+                    <i class="fa-solid fa-file-export"></i>
+                </button>
+                
+                <!-- CTA buttons depending on active tab -->
+                <button id="adicionar-caffeina" class="btn btn-primary cta-coffee">
+                    <i class="fa-solid fa-plus"></i> <span>Adicionar Café</span>
+                </button>
+                <button id="adicionar-agua" class="btn btn-cyan cta-water hidden">
+                    <i class="fa-solid fa-plus"></i> <span>Registar Água</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- NAVIGATION TAB BAR: CAFÉ vs ÁGUA -->
+        <nav class="main-tab-nav">
+            <button class="nav-tab active" id="tab-btn-coffee" data-tab="coffee">
+                <i class="fa-solid fa-mug-saucer"></i>
+                <span>Consumo de Café ☕</span>
+            </button>
+            <button class="nav-tab" id="tab-btn-water" data-tab="water">
+                <i class="fa-solid fa-droplet"></i>
+                <span>Hidratação / Água 💧</span>
+            </button>
+        </nav>
+
+        <!-- VIEW 1: COFFEE DASHBOARD -->
+        <div id="view-coffee" class="tab-view-content active">
+            <main class="dashboard-grid">
+                
+                <!-- SECTION 1: TOP STATS BANNER (SEM GRÁFICO) -->
+                <section class="stats-overview-section">
+                    <div class="section-title-wrapper">
+                        <h2><i class="fa-solid fa-chart-simple"></i> Estatísticas de Café</h2>
+                        <span class="badge badge-gold"><i class="fa-solid fa-bolt"></i> Resumo em Tempo Real</span>
+                    </div>
+
+                    <div class="stats-cards-grid">
+                        <!-- Café Preferido -->
+                        <div class="stat-card gold-border">
+                            <div class="stat-icon"><i class="fa-solid fa-award"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Café Preferido</span>
+                                <div class="stat-value" id="stat-cafe-preferido">--</div>
+                                <span class="stat-subtext" id="stat-cafe-preferido-sub">Baseado em avaliações e consumo</span>
+                            </div>
+                        </div>
+
+                        <!-- Horário Mais Consumido -->
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-regular fa-clock"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Horário de Pico</span>
+                                <div class="stat-value" id="stat-horario-pico">--</div>
+                                <span class="stat-subtext" id="stat-horario-pico-sub">Faixa horária de maior consumo</span>
+                            </div>
+                        </div>
+
+                        <!-- Dia da Semana Mais Consumido -->
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-regular fa-calendar-days"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Dia Favorito da Semana</span>
+                                <div class="stat-value" id="stat-dia-semana-pico">--</div>
+                                <span class="stat-subtext" id="stat-dia-semana-pico-sub">Dia com mais cafés tomados</span>
+                            </div>
+                        </div>
+
+                        <!-- Média de Café por Dia -->
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-fire"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Média Cafés / Dia</span>
+                                <div class="stat-value" id="stat-media-cafes-dia">0.0</div>
+                                <span class="stat-subtext" id="stat-total-cafes">0 cafés registados</span>
+                            </div>
+                        </div>
+
+                        <!-- Média Dinheiro Gasto por Dia -->
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-euro-sign"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Média Gasto / Dia</span>
+                                <div class="stat-value" id="stat-media-gasto-dia">0,00 €</div>
+                                <span class="stat-subtext" id="stat-total-gasto">Total: 0,00 €</span>
+                            </div>
+                        </div>
+
+                        <!-- Café Mais Caro -->
+                        <div class="stat-card">
+                            <div class="stat-icon icon-danger"><i class="fa-solid fa-arrow-up-right-dots"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Café Mais Caro</span>
+                                <div class="stat-value" id="stat-cafe-mais-caro-preco">0,00 €</div>
+                                <span class="stat-subtext" id="stat-cafe-mais-caro-info">-- (--)</span>
+                            </div>
+                        </div>
+
+                        <!-- Café Mais Barato -->
+                        <div class="stat-card">
+                            <div class="stat-icon icon-success"><i class="fa-solid fa-arrow-down-short-wide"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Café Mais Barato</span>
+                                <div class="stat-value" id="stat-cafe-mais-barato-preco">0,00 €</div>
+                                <span class="stat-subtext" id="stat-cafe-mais-barato-info">-- (--)</span>
+                            </div>
+                        </div>
+
+                        <!-- Média de Pessoas -->
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa-solid fa-user-group"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Média de Acompanhantes</span>
+                                <div class="stat-value" id="stat-media-pessoas">1.0 pessoas</div>
+                                <span class="stat-subtext">Com quem toma o café</span>
+                            </div>
+                        </div>
+
+                        <!-- Sozinho vs Com Pessoas -->
+                        <div class="stat-card highlight-card">
+                            <div class="stat-icon"><i class="fa-solid fa-people-arrows"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Sozinho vs Com Pessoas</span>
+                                <div class="stat-value" id="stat-sozinho-vs-pessoas">0 vs 0</div>
+                                <span class="stat-subtext" id="stat-sozinho-pct">0% Sozinho | 0% Acompanhado</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 2: CHARTS SECTION (COM GRÁFICOS) -->
+                <section class="charts-section">
+                    <div class="chart-header">
+                        <div class="chart-title">
+                            <h2><i class="fa-solid fa-chart-line"></i> Análise Gráfica de Café</h2>
+                            <p class="chart-subtitle">Visualize padrões de consumo e gastos ao longo do tempo</p>
+                        </div>
+
+                        <!-- Chart Mode Switcher & Time Filter -->
+                        <div class="chart-controls">
+                            <!-- Metric Selector -->
+                            <div class="btn-group" id="chart-metric-group">
+                                <button class="btn-toggle active" data-metric="consumo">
+                                    <i class="fa-solid fa-mug-hot"></i> Café Consumido
+                                </button>
+                                <button class="btn-toggle" data-metric="gasto">
+                                    <i class="fa-solid fa-euro-sign"></i> Preço Gasto (€)
+                                </button>
+                            </div>
+
+                            <!-- Timeframe Selector -->
+                            <div class="btn-group" id="chart-timeframe-group">
+                                <button class="btn-toggle active" data-timeframe="dia">Dia</button>
+                                <button class="btn-toggle" data-timeframe="dia-semana">Dia da Semana</button>
+                                <button class="btn-toggle" data-timeframe="mes">Mês</button>
+                                <button class="btn-toggle" data-timeframe="ano">Ano</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container-wrapper">
+                        <div class="chart-canvas-container">
+                            <canvas id="primaryChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Secondary Split Charts -->
+                    <div class="secondary-charts-grid">
+                        <div class="secondary-chart-card">
+                            <h3><i class="fa-solid fa-house-laptop"></i> Feito em Casa vs Cafeterias</h3>
+                            <div class="pie-chart-container">
+                                <canvas id="homeVsOutsideChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="secondary-chart-card">
+                            <h3><i class="fa-solid fa-star"></i> Distribuição de Avaliações (0-5★)</h3>
+                            <div class="pie-chart-container">
+                                <canvas id="ratingsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 3: HISTORY & LOGS TABLE -->
+                <section class="history-section">
+                    <div class="history-header">
+                        <div class="history-title">
+                            <h2><i class="fa-solid fa-list-check"></i> Histórico de Cafés</h2>
+                            <span class="badge" id="history-counter">0 registos</span>
+                        </div>
+
+                        <!-- Search & Filter Inputs -->
+                        <div class="history-filters">
+                            <div class="search-input-wrapper">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="search-history" placeholder="Pesquisar por nome ou lugar...">
+                            </div>
+                            <select id="filter-type" class="filter-select">
+                                <option value="todos">Todos os locais</option>
+                                <option value="casa">🏠 Feito em Casa</option>
+                                <option value="fora">☕ Cafeteria / Fora</option>
+                                <option value="pendente">⭐ Pendente de Avaliação</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Coffee Cards / Table -->
+                    <div id="coffee-list" class="coffee-list-container">
+                        <!-- Dynamically populated -->
+                    </div>
+                </section>
+            </main>
         </div>
 
-        <!-- Tab content -->
-         <div id="Home" class="tabcontent">
-            <h3>Home</h3>
-            <p>Bem-vindo ao site de tracking de cafeina, para deixar a sua vida muito melhor sabendo quando de cafe e necessario para se manter vivo</p>
-         </div>
+        <!-- VIEW 2: WATER TRACKER DASHBOARD -->
+        <div id="view-water" class="tab-view-content hidden">
+            <main class="dashboard-grid">
+                
+                <!-- QUICK ADD WATER BANNER -->
+                <section class="quick-water-banner">
+                    <div class="quick-water-title">
+                        <h2><i class="fa-solid fa-bottle-water"></i> Registar Consumo Rápido de Água</h2>
+                        <p>A sua garrafa tem o tamanho padrão de <strong>750 ml</strong>. Registe com 1-clique:</p>
+                    </div>
+                    <div class="quick-water-buttons">
+                        <button class="btn btn-water-preset btn-quick-water" data-ml="750" data-label="1 Garrafa (750 ml)">
+                            <i class="fa-solid fa-bottle-water"></i>
+                            <div class="preset-text">
+                                <span>+1 Garrafa</span>
+                                <small>750 ml</small>
+                            </div>
+                        </button>
+                        <button class="btn btn-water-preset btn-quick-water" data-ml="1500" data-label="2 Garrafas (1500 ml)">
+                            <i class="fa-solid fa-bottle-water"></i>
+                            <div class="preset-text">
+                                <span>+2 Garrafas</span>
+                                <small>1.500 ml (1,5 L)</small>
+                            </div>
+                        </button>
+                        <button class="btn btn-water-preset btn-quick-water" data-ml="250" data-label="1 Copo (250 ml)">
+                            <i class="fa-solid fa-glass-water"></i>
+                            <div class="preset-text">
+                                <span>+1 Copo</span>
+                                <small>250 ml</small>
+                            </div>
+                        </button>
+                        <button class="btn btn-water-preset btn-quick-water" data-ml="500" data-label="500 ml">
+                            <i class="fa-solid fa-whiskey-glass"></i>
+                            <div class="preset-text">
+                                <span>+500 ml</span>
+                                <small>0,5 L</small>
+                            </div>
+                        </button>
+                    </div>
+                </section>
 
-         <div id="Registar" class="tabcontent">
-            <h3>Registar</h3>
-            <p>Registrando a cafeina do momento</p>
-         </div>
+                <!-- WATER STATS OVERVIEW CARDS -->
+                <section class="stats-overview-section">
+                    <div class="section-title-wrapper">
+                        <h2><i class="fa-solid fa-chart-pie"></i> Estatísticas de Hidratação</h2>
+                        <span class="badge badge-cyan"><i class="fa-solid fa-droplet"></i> ml & Litros & Garrafas (750ml)</span>
+                    </div>
 
-         <div id="Historico" class="tabcontent">
-            <h3>Historico</h3>
-            <p>Veja os momentos historicos da cafeina que fez parte de sua vida</p>
-         </div>
+                    <div class="stats-cards-grid">
+                        <!-- Total de Água Bebida -->
+                        <div class="stat-card cyan-border">
+                            <div class="stat-icon icon-cyan"><i class="fa-solid fa-droplet"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Total Consumido</span>
+                                <div class="stat-value" id="stat-water-total-liters">0,0 L</div>
+                                <span class="stat-subtext" id="stat-water-total-ml">0 ml registados</span>
+                            </div>
+                        </div>
 
-         <div id="Estatisticas" class="tabcontent">
-            <h3>Estatisticas</h3>
-            <p>Veja os dados de consumo da melhor forma possivel, sendo eles graficamente</p>
-         </div>
+                        <!-- Total em Garrafas de 750ml -->
+                        <div class="stat-card cyan-border">
+                            <div class="stat-icon icon-cyan"><i class="fa-solid fa-bottle-water"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Garrafas (750 ml)</span>
+                                <div class="stat-value" id="stat-water-total-bottles">0.0 garrafas</div>
+                                <span class="stat-subtext">Equivalência de garrafas de 750 ml</span>
+                            </div>
+                        </div>
 
-         <div id="Configuracoes" class="tabcontent">
-            <h3>Configuracoes</h3>
-            <p>A melhor parte da vida e ter o o controle do que podemos e aqui estao todo os controles possiveis que pode mexer</p>
-         </div>
-    </body>
+                        <!-- Média Diária de Água -->
+                        <div class="stat-card">
+                            <div class="stat-icon icon-cyan"><i class="fa-solid fa-arrows-to-dot"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Média Diária</span>
+                                <div class="stat-value" id="stat-water-daily-avg">0,0 L / dia</div>
+                                <span class="stat-subtext" id="stat-water-daily-bottles">0.0 garrafas de 750 ml/dia</span>
+                            </div>
+                        </div>
+
+                        <!-- Horário Mais Comum -->
+                        <div class="stat-card">
+                            <div class="stat-icon icon-cyan"><i class="fa-regular fa-clock"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Horário de Pico</span>
+                                <div class="stat-value" id="stat-water-peak-hour">--</div>
+                                <span class="stat-subtext" id="stat-water-peak-hour-sub">Faixa horária onde mais bebe água</span>
+                            </div>
+                        </div>
+
+                        <!-- Dia da Semana Mais Comum -->
+                        <div class="stat-card">
+                            <div class="stat-icon icon-cyan"><i class="fa-regular fa-calendar-days"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Dia de Maior Hidratação</span>
+                                <div class="stat-value" id="stat-water-peak-day">--</div>
+                                <span class="stat-subtext" id="stat-water-peak-day-sub">Dia com maior consumo</span>
+                            </div>
+                        </div>
+
+                        <!-- Registos de Água -->
+                        <div class="stat-card">
+                            <div class="stat-icon icon-cyan"><i class="fa-solid fa-glass-water-droplet"></i></div>
+                            <div class="stat-content">
+                                <span class="stat-label">Total de Doses</span>
+                                <div class="stat-value" id="stat-water-entries-count">0 registos</div>
+                                <span class="stat-subtext">Doses de água registadas</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- WATER CHARTS SECTION -->
+                <section class="charts-section">
+                    <div class="chart-header">
+                        <div class="chart-title">
+                            <h2><i class="fa-solid fa-chart-column"></i> Gráficos de Consumo de Água</h2>
+                            <p class="chart-subtitle">Análise por Dia, Dia da Semana, Mês e Ano em Litros (L) e Garrafas</p>
+                        </div>
+
+                        <div class="chart-controls">
+                            <!-- Unit Selector -->
+                            <div class="btn-group" id="water-chart-unit-group">
+                                <button class="btn-toggle active" data-unit="liters">
+                                    <i class="fa-solid fa-droplet"></i> Litros (L)
+                                </button>
+                                <button class="btn-toggle" data-unit="ml">
+                                    <i class="fa-solid fa-glass-water"></i> Mililitros (ml)
+                                </button>
+                                <button class="btn-toggle" data-unit="bottles">
+                                    <i class="fa-solid fa-bottle-water"></i> Garrafas (750ml)
+                                </button>
+                            </div>
+
+                            <!-- Timeframe Selector -->
+                            <div class="btn-group" id="water-chart-timeframe-group">
+                                <button class="btn-toggle active" data-timeframe="dia">Dia</button>
+                                <button class="btn-toggle" data-timeframe="dia-semana">Dia da Semana</button>
+                                <button class="btn-toggle" data-timeframe="mes">Mês</button>
+                                <button class="btn-toggle" data-timeframe="ano">Ano</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container-wrapper">
+                        <div class="chart-canvas-container">
+                            <canvas id="waterPrimaryChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- WATER HISTORY LOGS -->
+                <section class="history-section">
+                    <div class="history-header">
+                        <div class="history-title">
+                            <h2><i class="fa-solid fa-list-ul"></i> Histórico de Registos de Água</h2>
+                            <span class="badge badge-cyan" id="water-history-counter">0 registos</span>
+                        </div>
+                    </div>
+
+                    <div id="water-list" class="coffee-list-container">
+                        <!-- Dynamically populated -->
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- MODAL: ADICIONAR / EDITAR CAFÉ -->
+    <div id="modal" class="modal escondido">
+        <div class="modal-overlay" id="modal-overlay"></div>
+        <div class="modal-conteudo">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <i class="fa-solid fa-mug-saucer" id="modal-icon"></i>
+                    <h2 id="modal-title">Registar Café</h2>
+                </div>
+                <button id="fechar-modal" type="button" class="btn-close" title="Fechar">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="form-cafe" onsubmit="return false;">
+                <input type="hidden" id="edit-id" value="">
+
+                <!-- TYPE SWITCHER: FEITO EM CASA VS FORA -->
+                <div class="form-group form-type-selector">
+                    <label class="form-label">Onde tomou este café?</label>
+                    <div class="type-toggle-wrapper">
+                        <label class="type-option">
+                            <input type="radio" name="tipo-origem" value="fora" checked id="tipo-fora">
+                            <div class="type-box">
+                                <i class="fa-solid fa-store"></i>
+                                <span>Cafeteria / Fora</span>
+                            </div>
+                        </label>
+                        <label class="type-option">
+                            <input type="radio" name="tipo-origem" value="casa" id="tipo-casa">
+                            <div class="type-box">
+                                <i class="fa-solid fa-house-chimney"></i>
+                                <span>Fiz em Casa 🏠</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- OBRIGATÓRIOS: NOME E PREÇO -->
+                <div class="form-row grid-2">
+                    <div class="form-group">
+                        <label for="bebida" class="form-label required-field">Nome do Café</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-coffee"></i>
+                            <input type="text" id="bebida" name="bebida" placeholder="Ex: Espresso, Meia de Leite, V60..." required list="cafe-suggestions">
+                        </div>
+                        <datalist id="cafe-suggestions">
+                            <option value="Espresso"></option>
+                            <option value="Meia de Leite"></option>
+                            <option value="Galão"></option>
+                            <option value="Café com Leite"></option>
+                            <option value="Cappuccino"></option>
+                            <option value="Flat White"></option>
+                            <option value="Americano"></option>
+                            <option value="Café Coado (V60)"></option>
+                            <option value="Chemex"></option>
+                            <option value="Prensa Francesa"></option>
+                            <option value="Cold Brew"></option>
+                        </datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="preco" class="form-label required-field">Preço (€)</label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-euro-sign"></i>
+                            <input type="number" id="preco" name="preco" step="0.01" min="0" placeholder="Ex: 1,20" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LUGAR & DATA/HORA -->
+                <div class="form-row grid-2">
+                    <div class="form-group">
+                        <label for="lugar-input" class="form-label">Lugar / Local <span class="optional-tag">(Opcional)</span></label>
+                        <div class="input-with-icon">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <input type="text" id="lugar-input" name="lugar" placeholder="Ex: Café Central, Trabalho, Casa..." list="lugar-suggestions">
+                        </div>
+                        <datalist id="lugar-suggestions">
+                            <option value="Casa"></option>
+                            <option value="Trabalho"></option>
+                            <option value="Cafeteria"></option>
+                        </datalist>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="data-hora" class="form-label">Data e Hora <span class="auto-tag">(Automático)</span></label>
+                        <div class="input-with-icon">
+                            <i class="fa-regular fa-clock"></i>
+                            <input type="datetime-local" id="data-hora" name="data-hora">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AVALIAÇÃO (0 A 5 ESTRELAS) -->
+                <div class="form-group">
+                    <div class="rating-header">
+                        <label class="form-label">Avaliação do Café</label>
+                        <span id="rating-label-text" class="rating-badge">4.0 / 5.0</span>
+                    </div>
+                    <div class="star-rating-picker" id="star-picker">
+                        <i class="fa-star star-btn" data-value="1"></i>
+                        <i class="fa-star star-btn" data-value="2"></i>
+                        <i class="fa-star star-btn" data-value="3"></i>
+                        <i class="fa-star star-btn" data-value="4"></i>
+                        <i class="fa-star star-btn" data-value="5"></i>
+                        <button type="button" id="btn-zero-star" class="btn-text-sm" title="Avaliar 0 estrelas ou deixar pendente">Limpar / Avaliar mais tarde</button>
+                    </div>
+                    <input type="hidden" id="avaliacao" name="avaliacao" value="4">
+                </div>
+
+                <!-- QUANTAS PESSOAS FUI TOMAR JUNTO -->
+                <div class="form-group">
+                    <label class="form-label">Com quem foi tomar o café?</label>
+                    <div class="people-counter-wrapper">
+                        <div class="people-toggle-group">
+                            <button type="button" class="btn-people-mode active" id="btn-solo" data-mode="1">
+                                <i class="fa-solid fa-user"></i> Sozinho (1 pessoa)
+                            </button>
+                            <button type="button" class="btn-people-mode" id="btn-group" data-mode="group">
+                                <i class="fa-solid fa-users"></i> Com Acompanhantes
+                            </button>
+                        </div>
+                        <div class="people-count-input hidden" id="group-count-box">
+                            <label for="num-pessoas">Total de pessoas (consigo incluído):</label>
+                            <div class="number-stepper">
+                                <button type="button" id="btn-dec-pessoas" class="btn-step">-</button>
+                                <input type="number" id="num-pessoas" min="1" max="50" value="1">
+                                <button type="button" id="btn-inc-pessoas" class="btn-step">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CAMPOS EXCLUSIVOS PARA "FIZ EM CASA" -->
+                <div class="home-brew-fields hidden" id="home-brew-section">
+                    <div class="home-section-header">
+                        <i class="fa-solid fa-flask"></i>
+                        <h3>Detalhes do Preparo em Casa</h3>
+                    </div>
+
+                    <div class="form-row grid-2">
+                        <div class="form-group">
+                            <label for="peso-cafe" class="form-label">Peso do Café (g)</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-weight-scale"></i>
+                                <input type="number" id="peso-cafe" step="0.1" min="0" placeholder="Ex: 18g">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="marca-grao" class="form-label">Marca / Origem do Grão</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-seedling"></i>
+                                <input type="text" id="marca-grao" placeholder="Ex: Delta, Etiópia Yirgacheffe, Colombia...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Foi moído no momento?</label>
+                            <div class="radio-switch">
+                                <label><input type="radio" name="moido-flag" value="sim" checked id="moido-sim"> <span>Sim, Moído</span></label>
+                                <label><input type="radio" name="moido-flag" value="nao" id="moido-nao"> <span>Não (Pré-moído)</span></label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="grau-moagem-box">
+                            <label for="grau-moagem" class="form-label">Grau de Moagem</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-sliders"></i>
+                                <input type="text" id="grau-moagem" placeholder="Ex: Fina, Média-fina (V60), 14 cliques...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row grid-2">
+                        <div class="form-group">
+                            <label for="tempo-gasto" class="form-label">Tempo de Preparo</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-stopwatch"></i>
+                                <input type="text" id="tempo-gasto" placeholder="Ex: 2:30 min, 3 min">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="quantidade-feita" class="form-label">Quantidade Feita</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-fill-drip"></i>
+                                <input type="text" id="quantidade-feita" placeholder="Ex: 250 ml, 2 chávenas">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="btn-cancelar" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-salvar" class="btn btn-primary btn-lg">
+                        <i class="fa-solid fa-floppy-disk"></i> <span>Guardar Registo</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTAR / EDITAR ÁGUA -->
+    <div id="modal-water" class="modal escondido">
+        <div class="modal-overlay" id="modal-water-overlay"></div>
+        <div class="modal-conteudo modal-sm">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <i class="fa-solid fa-droplet" style="color: #06b6d4;"></i>
+                    <h2 id="modal-water-title">Registar Consumo de Água</h2>
+                </div>
+                <button id="fechar-modal-water" type="button" class="btn-close" title="Fechar">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="form-water" onsubmit="return false;">
+                <input type="hidden" id="edit-water-id" value="">
+
+                <div class="form-group">
+                    <label for="water-ml" class="form-label required-field">Quantidade de Água (ml)</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-bottle-water" style="color: #06b6d4;"></i>
+                        <input type="number" id="water-ml" name="water-ml" step="50" min="50" placeholder="Ex: 750 ml (1 Garrafa)" required>
+                    </div>
+                    <div class="water-bottle-calc-info" id="water-calc-preview">
+                        = 1 garrafa de 750 ml (0,75 L)
+                    </div>
+                </div>
+
+                <!-- PRESET BUTTONS INSIDE FORM -->
+                <div class="form-group">
+                    <label class="form-label">Atalhos rápidos:</label>
+                    <div class="quick-preset-chips">
+                        <button type="button" class="chip-btn" data-ml="750">🍼 Garrafa 750ml</button>
+                        <button type="button" class="chip-btn" data-ml="1500">🍼 2 Garrafas (1,5 L)</button>
+                        <button type="button" class="chip-btn" data-ml="250">🥛 Copo 250ml</button>
+                        <button type="button" class="chip-btn" data-ml="500">💧 500ml</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="water-data-hora" class="form-label">Data e Hora <span class="auto-tag">(Automático)</span></label>
+                    <div class="input-with-icon">
+                        <i class="fa-regular fa-clock" style="color: #06b6d4;"></i>
+                        <input type="datetime-local" id="water-data-hora" name="water-data-hora">
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" id="btn-cancelar-water" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-salvar-water" class="btn btn-cyan">
+                        <i class="fa-solid fa-floppy-disk"></i> <span>Guardar Água</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: AVALIAÇÃO RÁPIDA (PARA CAFÉS PENDENTES) -->
+    <div id="modal-quick-rate" class="modal escondido">
+        <div class="modal-overlay" id="modal-quick-rate-overlay"></div>
+        <div class="modal-conteudo modal-sm">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <i class="fa-solid fa-star" style="color: #f59e0b;"></i>
+                    <h2>Avaliar Café</h2>
+                </div>
+                <button id="fechar-modal-quick-rate" type="button" class="btn-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="quick-rate-body" style="text-align: center; padding: 10px 0;">
+                <h3 id="quick-rate-coffee-title" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">--</h3>
+                <p id="quick-rate-coffee-meta" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">--</p>
+
+                <div class="quick-star-container" style="background: rgba(0,0,0,0.25); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px;">Selecione a sua classificação:</label>
+                    <div class="star-rating-picker" id="quick-star-picker" style="justify-content: center; gap: 12px;">
+                        <i class="fa-star star-btn" data-value="1" style="font-size: 2rem;"></i>
+                        <i class="fa-star star-btn" data-value="2" style="font-size: 2rem;"></i>
+                        <i class="fa-star star-btn" data-value="3" style="font-size: 2rem;"></i>
+                        <i class="fa-star star-btn" data-value="4" style="font-size: 2rem;"></i>
+                        <i class="fa-star star-btn" data-value="5" style="font-size: 2rem;"></i>
+                    </div>
+                    <div id="quick-rating-label" class="rating-badge" style="font-size: 1.1rem; margin-top: 14px; display: inline-block;">5.0 Estrelas</div>
+                </div>
+
+                <div class="modal-footer" style="margin-top: 10px;">
+                    <button type="button" id="btn-cancel-quick-rate" class="btn btn-secondary">Cancelar</button>
+                    <button type="button" id="btn-save-quick-rate" class="btn btn-primary" style="flex: 1;">
+                        <i class="fa-solid fa-floppy-disk"></i> Guardar Avaliação
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EXPORTAR / IMPORTAR DADOS -->
+    <div id="modal-export" class="modal escondido">
+        <div class="modal-overlay" id="modal-export-overlay"></div>
+        <div class="modal-conteudo modal-sm">
+            <div class="modal-header">
+                <div class="modal-title-box">
+                    <i class="fa-solid fa-database"></i>
+                    <h2>Gestão de Dados</h2>
+                </div>
+                <button id="fechar-modal-export" type="button" class="btn-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="export-body">
+                <p>Pode descarregar uma cópia de segurança em formato JSON ou importar registos anteriores.</p>
+                <div class="export-actions">
+                    <button id="btn-download-json" class="btn btn-secondary">
+                        <i class="fa-solid fa-download"></i> Exportar Dados (JSON)
+                    </button>
+                    <label class="btn btn-secondary btn-file-label">
+                        <i class="fa-solid fa-upload"></i> Importar Ficheiro JSON
+                        <input type="file" id="input-import-json" accept=".json" class="hidden-file-input">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- App Script -->
+    <script src="script.js"></script>
+</body>
 </html>
