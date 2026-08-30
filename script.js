@@ -104,39 +104,189 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEMO_WATERS = [];
 
     /* ==========================================================================
+       API CLIENT & SERVER STORAGE
+       ========================================================================== */
+    const api = {
+        async getData() {
+            const res = await fetch('/api/data', { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async addCoffee(coffee) {
+            const res = await fetch('/api/coffees', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(coffee)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async updateCoffee(id, coffee) {
+            const res = await fetch(`/api/coffees/${encodeURIComponent(id)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(coffee)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async deleteCoffee(id) {
+            const res = await fetch(`/api/coffees/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async addWater(water) {
+            const res = await fetch('/api/waters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(water)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async updateWater(id, water) {
+            const res = await fetch(`/api/waters/${encodeURIComponent(id)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(water)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async deleteWater(id) {
+            const res = await fetch(`/api/waters/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async syncData(payload) {
+            const res = await fetch('/api/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        },
+        async importData(payload) {
+            const res = await fetch('/api/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        }
+    };
+
+    function setServerStatus(status, details = '') {
+        const pill = document.getElementById('server-status-pill');
+        if (!pill) return;
+        if (status === 'online') {
+            pill.className = 'server-pill online';
+            pill.innerHTML = '<span class="status-dot"></span> <span class="status-text">Servidor</span>';
+            pill.title = 'Sincronizado em tempo real com a base de dados no servidor' + (details ? ` (${details})` : '');
+        } else if (status === 'saving') {
+            pill.className = 'server-pill saving';
+            pill.innerHTML = '<span class="status-dot"></span> <span class="status-text">A gravar...</span>';
+            pill.title = 'A enviar alterações para o servidor...';
+        } else if (status === 'offline') {
+            pill.className = 'server-pill offline';
+            pill.innerHTML = '<span class="status-dot"></span> <span class="status-text">Offline</span>';
+            pill.title = 'Não foi possível ligar ao servidor. A utilizar cópia local.';
+        }
+    }
+
+    function saveLocalBackup() {
+        try {
+            localStorage.setItem('coffee_tracker_data', JSON.stringify(coffees));
+            localStorage.setItem('water_tracker_data', JSON.stringify(waters));
+        } catch (e) {
+            console.warn('[Cache] Erro ao gravar cache local:', e);
+        }
+    }
+
+    /* ==========================================================================
        INITIALIZATION & STORAGE
        ========================================================================== */
-    function initApp() {
+    async function initApp() {
         startClock();
-        loadData();
         setupEventListeners();
+        await loadData();
         updateUI();
+        setInterval(pollServerUpdates, 15000);
     }
 
-    function loadData() {
-        const storedCoffee = localStorage.getItem('coffee_tracker_data');
-        if (storedCoffee) {
-            try { coffees = JSON.parse(storedCoffee); } catch (e) { coffees = []; }
-        } else {
-            coffees = [];
-            saveCoffeeData();
+    async function loadData() {
+        setServerStatus('saving');
+        try {
+            const data = await api.getData();
+            
+            // Check legacy localStorage for migration if server is empty
+            const storedCoffee = localStorage.getItem('coffee_tracker_data');
+            const storedWater = localStorage.getItem('water_tracker_data');
+            let localCoffees = [];
+            let localWaters = [];
+            try { if (storedCoffee) localCoffees = JSON.parse(storedCoffee); } catch (e) {}
+            try { if (storedWater) localWaters = JSON.parse(storedWater); } catch (e) {}
+
+            const serverEmpty = (!data.coffees || data.coffees.length === 0) && (!data.waters || data.waters.length === 0);
+            const localHasData = (localCoffees.length > 0 || localWaters.length > 0);
+
+            if (serverEmpty && localHasData) {
+                console.log('[Sync] Migrando dados do localStorage para o servidor...');
+                await api.syncData({ coffees: localCoffees, waters: localWaters });
+                coffees = localCoffees;
+                waters = localWaters;
+            } else {
+                coffees = Array.isArray(data.coffees) ? data.coffees : [];
+                waters = Array.isArray(data.waters) ? data.waters : [];
+            }
+
+            saveLocalBackup();
+            setServerStatus('online');
+        } catch (err) {
+            console.warn('[Sync] Falha ao comunicar com servidor. A usar cópia de segurança local:', err);
+            setServerStatus('offline');
+            const storedCoffee = localStorage.getItem('coffee_tracker_data');
+            if (storedCoffee) {
+                try { coffees = JSON.parse(storedCoffee); } catch (e) { coffees = []; }
+            } else { coffees = []; }
+
+            const storedWater = localStorage.getItem('water_tracker_data');
+            if (storedWater) {
+                try { waters = JSON.parse(storedWater); } catch (e) { waters = []; }
+            } else { waters = []; }
         }
+    }
 
-        const storedWater = localStorage.getItem('water_tracker_data');
-        if (storedWater) {
-            try { waters = JSON.parse(storedWater); } catch (e) { waters = []; }
-        } else {
-            waters = [];
-            saveWaterData();
+    let isPolling = false;
+    async function pollServerUpdates() {
+        if (isPolling) return;
+        isPolling = true;
+        try {
+            const data = await api.getData();
+            setServerStatus('online');
+            
+            const serverCoffeesJson = JSON.stringify(data.coffees || []);
+            const serverWatersJson = JSON.stringify(data.waters || []);
+            const currentCoffeesJson = JSON.stringify(coffees);
+            const currentWatersJson = JSON.stringify(waters);
+
+            if (serverCoffeesJson !== currentCoffeesJson || serverWatersJson !== currentWatersJson) {
+                coffees = Array.isArray(data.coffees) ? data.coffees : [];
+                waters = Array.isArray(data.waters) ? data.waters : [];
+                saveLocalBackup();
+                updateUI();
+            }
+        } catch (err) {
+            setServerStatus('offline');
+        } finally {
+            isPolling = false;
         }
-    }
-
-    function saveCoffeeData() {
-        localStorage.setItem('coffee_tracker_data', JSON.stringify(coffees));
-    }
-
-    function saveWaterData() {
-        localStorage.setItem('water_tracker_data', JSON.stringify(waters));
     }
 
     /* ==========================================================================
@@ -166,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctaCoffee.classList.remove('hidden');
             ctaWater.classList.add('hidden');
-            brandIcon.className = 'fa-solid fa-mug-hot';
+            if (brandIcon) brandIcon.className = 'fa-solid fa-mug-hot';
         } else {
             tabBtnWater.classList.add('active');
             tabBtnCoffee.classList.remove('active');
@@ -175,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctaWater.classList.remove('hidden');
             ctaCoffee.classList.add('hidden');
-            brandIcon.className = 'fa-solid fa-droplet';
+            if (brandIcon) brandIcon.className = 'fa-solid fa-droplet';
         }
         updateUI();
     }
@@ -902,14 +1052,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* WATER QUICK ADD & FORM */
-    function quickAddWater(ml, label) {
+    async function quickAddWater(ml, label) {
         const nowStr = new Date().toISOString().slice(0, 16);
         const newWater = { id: 'w_' + Date.now(), ml: Number(ml), dataHora: nowStr };
-        waters.unshift(newWater);
-        saveWaterData();
+        setServerStatus('saving');
+        try {
+            const res = await api.addWater(newWater);
+            waters.unshift(res.water || newWater);
+            setServerStatus('online');
+        } catch (err) {
+            console.warn('[Water] Erro ao gravar no servidor:', err);
+            waters.unshift(newWater);
+            setServerStatus('offline');
+        }
+        saveLocalBackup();
         updateUI();
         const bottles = (ml / BOTTLE_SIZE_ML).toFixed(1);
-        showToast(`+${ml} ml de Água (${bottles} garrafa de 750ml) registados com sucesso! 💧`);
+        showToast(`+${ml} ml de Água (${bottles} garrafa de 750ml) guardados no servidor! 💧`);
     }
 
     function openAddWaterModal() {
@@ -952,7 +1111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function handleWaterSubmit(e) {
+    async function handleWaterSubmit(e) {
         e.preventDefault();
         const ml = parseInt(waterMlInput.value);
         const dataHora = waterDataHoraInput.value || new Date().toISOString().slice(0, 16);
@@ -963,28 +1122,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const editId = editWaterIdInput.value;
         const newWaterData = { id: editId || 'w_' + Date.now(), ml, dataHora };
+        setServerStatus('saving');
 
         if (editId) {
-            const index = waters.findIndex(w => w.id === editId);
-            if (index !== -1) waters[index] = newWaterData;
-            showToast('Registo de água atualizado! 💧');
+            try {
+                const res = await api.updateWater(editId, newWaterData);
+                const index = waters.findIndex(w => w.id === editId);
+                if (index !== -1) waters[index] = res.water || newWaterData;
+                setServerStatus('online');
+            } catch (err) {
+                console.warn('[Water] Erro ao atualizar no servidor:', err);
+                const index = waters.findIndex(w => w.id === editId);
+                if (index !== -1) waters[index] = newWaterData;
+                setServerStatus('offline');
+            }
+            showToast('Registo de água atualizado no servidor! 💧');
         } else {
-            waters.unshift(newWaterData);
-            showToast(`+${ml} ml de água registados! 💧`);
+            try {
+                const res = await api.addWater(newWaterData);
+                waters.unshift(res.water || newWaterData);
+                setServerStatus('online');
+            } catch (err) {
+                console.warn('[Water] Erro ao gravar no servidor:', err);
+                waters.unshift(newWaterData);
+                setServerStatus('offline');
+            }
+            showToast(`+${ml} ml de água guardados no servidor! 💧`);
         }
 
-        saveWaterData();
+        saveLocalBackup();
         closeWaterModal();
         updateUI();
     }
 
-    function deleteWater(id) {
-        if (confirm('Tem a certeza que deseja apagar este registo de água?')) {
+    async function deleteWater(id) {
+        if (!confirm('Tem a certeza que deseja apagar este registo de água?')) return;
+        setServerStatus('saving');
+        try {
+            await api.deleteWater(id);
             waters = waters.filter(w => w.id !== id);
-            saveWaterData();
-            updateUI();
-            showToast('Registo de água removido.');
+            setServerStatus('online');
+        } catch (err) {
+            console.warn('[Water] Erro ao remover do servidor:', err);
+            waters = waters.filter(w => w.id !== id);
+            setServerStatus('offline');
         }
+        saveLocalBackup();
+        updateUI();
+        showToast('Registo de água removido do servidor.');
     }
 
     /* COFFEE MODAL & SUBMIT */
@@ -1097,7 +1282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function handleCoffeeSubmit(e) {
+    async function handleCoffeeSubmit(e) {
         e.preventDefault();
         const bebida = document.getElementById('bebida').value.trim();
         const preco = parseFloat(document.getElementById('preco').value);
@@ -1135,27 +1320,54 @@ document.addEventListener('DOMContentLoaded', () => {
             newCoffeeData.quantidadeFeita = document.getElementById('quantidade-feita').value.trim() || null;
         }
 
+        setServerStatus('saving');
+
         if (editId) {
-            const index = coffees.findIndex(c => c.id === editId);
-            if (index !== -1) coffees[index] = newCoffeeData;
-            showToast('Registo de café atualizado! ☕');
+            try {
+                const res = await api.updateCoffee(editId, newCoffeeData);
+                const index = coffees.findIndex(c => c.id === editId);
+                if (index !== -1) coffees[index] = res.coffee || newCoffeeData;
+                setServerStatus('online');
+            } catch (err) {
+                console.warn('[Coffee] Erro ao atualizar no servidor:', err);
+                const index = coffees.findIndex(c => c.id === editId);
+                if (index !== -1) coffees[index] = newCoffeeData;
+                setServerStatus('offline');
+            }
+            showToast('Registo de café atualizado no servidor! ☕');
         } else {
-            coffees.unshift(newCoffeeData);
-            showToast('Novo café adicionado! ☕');
+            try {
+                const res = await api.addCoffee(newCoffeeData);
+                coffees.unshift(res.coffee || newCoffeeData);
+                setServerStatus('online');
+            } catch (err) {
+                console.warn('[Coffee] Erro ao gravar no servidor:', err);
+                coffees.unshift(newCoffeeData);
+                setServerStatus('offline');
+            }
+            showToast('Novo café guardado no servidor! ☕');
         }
 
-        saveCoffeeData();
+        saveLocalBackup();
         closeModal();
         updateUI();
     }
 
-    function deleteCoffee(id) {
-        if (confirm('Tem a certeza que deseja apagar este registo de café?')) {
+    async function deleteCoffee(id) {
+        if (!confirm('Tem a certeza que deseja apagar este registo de café?')) return;
+        setServerStatus('saving');
+        try {
+            await api.deleteCoffee(id);
             coffees = coffees.filter(c => c.id !== id);
-            saveCoffeeData();
-            updateUI();
-            showToast('Registo de café removido.');
+            setServerStatus('online');
+        } catch (err) {
+            console.warn('[Coffee] Erro ao remover do servidor:', err);
+            coffees = coffees.filter(c => c.id !== id);
+            setServerStatus('offline');
         }
+        saveLocalBackup();
+        updateUI();
+        showToast('Registo de café removido do servidor.');
     }
 
     /* EXPORT / IMPORT JSON */
@@ -1170,24 +1382,39 @@ document.addEventListener('DOMContentLoaded', () => {
         downloadAnchor.remove();
     }
 
-    function importJSON(e) {
+    async function importJSON(e) {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = function(evt) {
+        reader.onload = async function(evt) {
             try {
                 const parsed = JSON.parse(evt.target.result);
+                let importedCoffees = [];
+                let importedWaters = [];
                 if (parsed.coffees && parsed.waters) {
-                    coffees = parsed.coffees;
-                    waters = parsed.waters;
+                    importedCoffees = parsed.coffees;
+                    importedWaters = parsed.waters;
                 } else if (Array.isArray(parsed)) {
-                    coffees = parsed;
+                    importedCoffees = parsed;
                 }
-                saveCoffeeData();
-                saveWaterData();
+
+                setServerStatus('saving');
+                try {
+                    const result = await api.importData({ coffees: importedCoffees, waters: importedWaters });
+                    coffees = result.coffees || importedCoffees;
+                    waters = result.waters || importedWaters;
+                    setServerStatus('online');
+                } catch (err) {
+                    console.warn('[Import] Erro no servidor, a aplicar localmente:', err);
+                    coffees = importedCoffees;
+                    waters = importedWaters;
+                    setServerStatus('offline');
+                }
+
+                saveLocalBackup();
                 updateUI();
                 modalExport.classList.add('escondido');
-                showToast('Dados importados com sucesso! ☕💧');
+                showToast('Dados importados e guardados no servidor com sucesso! ☕💧');
             } catch (err) {
                 alert('Erro ao ler o ficheiro JSON: ' + err.message);
             }
@@ -1262,16 +1489,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (quickRatingLabel) quickRatingLabel.textContent = `${val}.0 Estrelas ⭐`;
     }
 
-    function saveQuickRating() {
+    async function saveQuickRating() {
         if (!currentQuickRateId) return;
         const index = coffees.findIndex(c => c.id === currentQuickRateId);
-        if (index !== -1) {
-            coffees[index].avaliacao = currentQuickRatingValue;
-            saveCoffeeData();
-            updateUI();
-            closeQuickRateModal();
-            showToast(`Avaliação de ${currentQuickRatingValue}.0★ guardada! ☕`);
+        if (index === -1) return;
+        const updatedRating = currentQuickRatingValue;
+        setServerStatus('saving');
+        try {
+            await api.updateCoffee(currentQuickRateId, { avaliacao: updatedRating });
+            coffees[index].avaliacao = updatedRating;
+            setServerStatus('online');
+        } catch (err) {
+            console.warn('[Rate] Erro ao atualizar nota no servidor:', err);
+            coffees[index].avaliacao = updatedRating;
+            setServerStatus('offline');
         }
+        saveLocalBackup();
+        updateUI();
+        closeQuickRateModal();
+        showToast(`Avaliação de ${updatedRating}.0★ guardada no servidor! ☕`);
     }
 
     // Run app!

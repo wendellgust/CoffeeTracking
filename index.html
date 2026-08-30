@@ -6,6 +6,14 @@
     <title>Coffee & Water Tracker ☕💧 | Gestão de Consumo & Hidratação</title>
     <meta name="description" content="Aplicação de rastreio de consumo de café, gastos em euros e registo diário de hidratação e consumo de água em garrafas e litros.">
     
+    <!-- Favicon / Logo da Aba do Navegador -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="shortcut icon" href="favicon.ico">
+    <meta name="theme-color" content="#121824">
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,12 +34,17 @@
         <!-- Header -->
         <header class="app-header">
             <div class="header-brand">
-                <div class="brand-logo">
-                    <i class="fa-solid fa-mug-hot" id="brand-main-icon"></i>
+                <div class="brand-logo" title="Coffee & Water Tracker">
+                    <img src="favicon.svg" alt="Xícara de Café Logo" class="brand-logo-img">
                 </div>
                 <div class="brand-text">
                     <h1>Coffee & Water <span>Tracker</span></h1>
-                    <p class="brand-subtitle"><i class="fa-regular fa-clock"></i> <span id="app-clock">--:--:--</span> • Acompanhamento Diário</p>
+                    <div class="brand-subline">
+                        <p class="brand-subtitle"><i class="fa-regular fa-clock"></i> <span id="app-clock">--:--:--</span> • Acompanhamento Diário</p>
+                        <span id="server-status-pill" class="server-pill online" title="Base de dados guardada no servidor">
+                            <span class="status-dot"></span> <span class="status-text">Servidor</span>
+                        </span>
+                    </div>
                 </div>
             </div>
 

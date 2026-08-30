@@ -55,17 +55,19 @@ Uma aplicação web moderna, responsiva e completa para acompanhar diariamente o
   - Métricas: *Litros (L)*, *Mililitros (ml)*, *Garrafas (750ml)*
   - Períodos: *Dia*, *Dia da Semana*, *Mês*, *Ano*
 
-### 🔒 5. Privacidade & Gestão de Dados
-- **Sem servidor externo**: Os dados são guardados localmente no navegador (`localStorage`).
-- **Exportação / Importação JSON**: Permite descarregar cópias de segurança em ficheiro JSON ou migrar registos entre dispositivos.
+### 🔒 5. Servidor Centralizado & Gestão de Dados
+- **Armazenamento no Servidor**: Os dados são guardados diretamente no servidor num ficheiro centralizado (`data/data.json`), com escrita atómica e cópias de segurança automáticas.
+- **Sincronização Multi-dispositivo**: Acesso simultâneo através de PC, telemóvel ou tablet na rede local com sincronização automática.
+- **Exportação / Importação JSON**: Permite descarregar cópias de segurança em ficheiro JSON ou restaurar registos a qualquer momento.
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **HTML5**: Estrutura semântica e acessível.
-- **Vanilla CSS3**: Sistema de design em *Dark Mode*, tipografia moderna (*Outfit*, *Plus Jakarta Sans*), efeitos de glassmorphism e responsividade total.
-- **JavaScript (ES6+)**: Gestão de estado local, manipulação do DOM e lógica de estatísticas.
+- **HTML5**: Estrutura semântica, responsiva e acessível com favicon em SVG / PNG / ICO (xícara de café).
+- **Vanilla CSS3**: Sistema de design em *Dark Mode*, tipografia moderna (*Outfit*, *Plus Jakarta Sans*), efeitos de glassmorphism, indicador de status do servidor e responsividade total.
+- **JavaScript (ES6+)**: Comunicação assíncrona REST com o backend, gestão de estado, manipulação do DOM e lógica de estatísticas.
+- **Python 3 Backend (`server.py`)**: Servidor HTTP embutido sem dependências externas (`pip`), com endpoints REST e persistência JSON segura.
 - **Chart.js**: Renderização de gráficos dinâmicos de alta performance.
 - **Font Awesome 6**: Ícones vetoriais.
 
@@ -75,9 +77,15 @@ Uma aplicação web moderna, responsiva e completa para acompanhar diariamente o
 
 ```text
 CoffeeTracking/
-├── index.html       # Estrutura HTML da aplicação e modais
+├── data/
+│   └── data.json    # Base de dados centralizada no servidor (cafés e águas)
+├── server.py        # Servidor backend HTTP e API REST (Python standard library)
+├── index.html       # Estrutura HTML da aplicação, modais e ícone de aba
 ├── style.css        # Estilos CSS, temas Dark Espresso / Cyan Water e responsividade
-├── script.js        # Lógica da aplicação, gráficos Chart.js e localStorage
+├── script.js        # Lógica cliente, API REST assíncrona e gráficos Chart.js
+├── favicon.svg      # Logo/ícone da xícara de café para a aba do navegador
+├── favicon.png      # Versão rasterizada do logo (64x64)
+├── favicon.ico      # Favicon multirresolução
 └── README.md        # Documentação do projeto
 ```
 
@@ -85,77 +93,41 @@ CoffeeTracking/
 
 ## 💻 Como Executar Localmente
 
-Não requer instalação de dependências ou build step. Basta abrir o ficheiro `index.html` em qualquer navegador web ou utilizar um servidor HTTP simples:
+Não requer instalação de bibliotecas ou dependências externas (`pip`). Basta executar o servidor Python incluído:
 
 ```bash
-# Exemplo com Python 3 (na porta 8085)
-python3 -m http.server 8085
+# Iniciar o servidor (porta padrão 8088 ou especificar outra, ex: 8085)
+python3 server.py 8085
 ```
 
-Aceda a `http://localhost:8085` no seu navegador.
+Aceda a **`http://localhost:8085`** no seu navegador. Os dados registados serão automaticamente gravados em `data/data.json` no servidor.
 
 ---
 
 ## 🍓 Guia de Instalação no Raspberry Pi (Porta 8088)
 
-Para hospedar o site no seu **Raspberry Pi** e aceder no telemóvel ou PC da sua rede doméstica numa porta diferente da 8080 (ex: **`8088`**):
+Para hospedar o site no seu **Raspberry Pi** e aceder a partir de qualquer computador ou telemóvel na rede local:
 
-### Opção 1: Usando Nginx (Recomendado)
-
-1. **Instalar o Nginx**:
-   ```bash
-   sudo apt update
-   sudo apt install nginx -y
-   ```
-
-2. **Criar a configuração do site**:
-   ```bash
-   sudo nano /etc/nginx/sites-available/coffeetracker
-   ```
-
-   Cole o seguinte conteúdo:
-   ```nginx
-   server {
-       listen 8088;
-       server_name _;
-
-       root /home/pi/coffeetracker;
-       index index.html;
-
-       location / {
-           try_files $uri $uri/ =404;
-       }
-   }
-   ```
-
-3. **Ativar o site e reiniciar o Nginx**:
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/coffeetracker /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
-
----
-
-### Opção 2: Usando Python 3 + Arranque Automático (Systemd)
+### Arranque Automático com Systemd (Recomendado)
 
 1. **Criar o serviço de sistema**:
    ```bash
    sudo nano /etc/systemd/system/coffeetracker.service
    ```
 
-2. **Inserir o conteúdo**:
+2. **Inserir a seguinte configuração**:
    ```ini
    [Unit]
-   Description=Coffee and Water Tracker HTTP Server
+   Description=Coffee and Water Tracker Server
    After=network.target
 
    [Service]
    Type=simple
    User=pi
-   WorkingDirectory=/home/pi/coffeetracker
-   ExecStart=/usr/bin/python3 -m http.server 8088
+   WorkingDirectory=/home/pi/CoffeeTracking
+   ExecStart=/usr/bin/python3 /home/pi/CoffeeTracking/server.py 8088
    Restart=always
+   RestartSec=3
 
    [Install]
    WantedBy=multi-user.target
@@ -170,7 +142,7 @@ Para hospedar o site no seu **Raspberry Pi** e aceder no telemóvel ou PC da sua
 
 ### 🌐 Acesso no Telemóvel / PC
 
-Descubra o IP do Raspberry Pi com `hostname -I` e aceda através do seu navegador:
+Descubra o IP do Raspberry Pi com `hostname -I` e aceda através do navegador de qualquer dispositivo:
 ```text
 http://<IP-DO-RASPBERRY>:8088
 ```
