@@ -421,11 +421,33 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
         sys.stdout.write(f"[{self.log_date_time_string()}] {args[0]} {args[1]} -> {args[2]}\n")
         sys.stdout.flush()
 
+class ReusableHTTPServer(HTTPServer):
+    """HTTPServer with socket address reuse enabled."""
+    allow_reuse_address = True
+
 def run_server(port=DEFAULT_PORT):
     """Start the Coffee & Water Tracker HTTP server."""
     ensure_data_file()
     server_address = ("", port)
-    httpd = HTTPServer(server_address, CoffeeTrackerHandler)
+    try:
+        httpd = ReusableHTTPServer(server_address, CoffeeTrackerHandler)
+    except OSError as e:
+        if e.errno == 98 or "Address already in use" in str(e):
+            print("\n" + "!" * 65)
+            print(f"❌ ERRO: A porta {port} já está a ser utilizada por outro processo!")
+            print("!" * 65)
+            print(f"\n💡 Como resolver:")
+            print(f"  1. Parar o processo anterior na porta {port}:")
+            print(f"     sudo fuser -k {port}/tcp")
+            print(f"     # Ou se for o serviço systemd anterior:")
+            print(f"     sudo systemctl stop coffeetracker\n")
+            print(f"  2. Ou iniciar numa porta diferente:")
+            print(f"     python3 server.py 8085")
+            print("!" * 65 + "\n")
+            sys.exit(1)
+        else:
+            raise e
+
     print("=" * 65)
     print(f"☕💧 Servidor Coffee & Water Tracker ativo!")
     print(f"🌐 Aceder localmente: http://localhost:{port}")
