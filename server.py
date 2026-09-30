@@ -9,6 +9,8 @@ import os
 import json
 import mimetypes
 import threading
+import time
+import uuid
 from urllib.parse import urlparse, unquote
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -33,27 +35,30 @@ def ensure_data_file():
             json.dump(initial_data, f, indent=2, ensure_ascii=False)
         print(f"[Server] Criado ficheiro de base de dados: {DATA_FILE}")
 
+def _load_json_file(path):
+    """Load a DB file and normalise it to {"coffees": [...], "waters": [...]}."""
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        data = {}
+    if not isinstance(data.get("coffees"), list):
+        data["coffees"] = []
+    if not isinstance(data.get("waters"), list):
+        data["waters"] = []
+    return data
+
 def read_db():
     """Thread-safe read of database."""
     with data_lock:
         ensure_data_file()
         try:
-            with open(DATA_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if not isinstance(data, dict):
-                    data = {"coffees": [], "waters": []}
-                if "coffees" not in data or not isinstance(data["coffees"], list):
-                    data["coffees"] = []
-                if "waters" not in data or not isinstance(data["waters"], list):
-                    data["waters"] = []
-                return data
+            return _load_json_file(DATA_FILE)
         except Exception as e:
             print(f"[Server Error] Erro ao ler base de dados: {e}")
             # Try to restore from backup if main file is corrupted
             if os.path.exists(BACKUP_FILE):
                 try:
-                    with open(BACKUP_FILE, "r", encoding="utf-8") as f:
-                        return json.load(f)
+                    return _load_json_file(BACKUP_FILE)
                 except Exception:
                     pass
             return {"coffees": [], "waters": []}
@@ -66,8 +71,11 @@ def write_db(data):
             # First backup existing data
             if os.path.exists(DATA_FILE):
                 try:
-                    with open(DATA_FILE, "r", encoding="utf-8") as src, open(BACKUP_FILE, "w", encoding="utf-8") as dst:
-                        dst.write(src.read())
+                    with open(DATA_FILE, "r", encoding="utf-8") as src:
+                        current = src.read()
+                    json.loads(current)  # never overwrite a good backup with corrupted data
+                    with open(BACKUP_FILE, "w", encoding="utf-8") as dst:
+                        dst.write(current)
                 except Exception as bkp_err:
                     print(f"[Server Warning] Backup falhou: {bkp_err}")
 
@@ -83,6 +91,25 @@ def write_db(data):
         except Exception as e:
             print(f"[Server Error] Erro ao gravar base de dados: {e}")
             return False
+
+def new_id(prefix):
+    """Generate a unique record ID (millisecond timestamp + random suffix)."""
+    return f"{prefix}_{int(time.time() * 1000)}{uuid.uuid4().hex[:4]}"
+
+def resolve_static_path(req_path):
+    """Map a URL path to a file inside BASE_DIR; return None if not allowed."""
+    if req_path in ("/", ""):
+        req_path = "/index.html"
+    clean_path = os.path.normpath(req_path.lstrip("/"))
+    file_path = os.path.abspath(os.path.join(BASE_DIR, clean_path))
+    # commonpath avoids the '/base' vs '/base2' prefix bypass of startswith()
+    if os.path.commonpath([BASE_DIR, file_path]) != BASE_DIR:
+        return None, clean_path
+    # Never serve hidden files/dirs (.git, ...) or the server source
+    parts = clean_path.split(os.sep)
+    if any(p.startswith(".") for p in parts) or clean_path == os.path.basename(__file__):
+        return None, clean_path
+    return file_path, clean_path
 
 class CoffeeTrackerHandler(BaseHTTPRequestHandler):
     """HTTP Request Handler for Coffee & Water Tracker."""
@@ -141,11 +168,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
             return
         
         # Static file head
-        if path in ("/", ""):
-            path = "/index.html"
-        clean_path = os.path.normpath(path.lstrip("/"))
-        file_path = os.path.join(BASE_DIR, clean_path)
-        if os.path.isfile(file_path) and os.path.abspath(file_path).startswith(BASE_DIR):
+        file_path, _ = resolve_static_path(path)
+        if file_path and os.path.isfile(file_path):
             content_type, _ = mimetypes.guess_type(file_path)
             if not content_type:
                 if file_path.endswith(".svg"):
@@ -177,7 +201,7 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
                     "coffees": len(db.get("coffees", [])),
                     "waters": len(db.get("waters", []))
                 },
-                "server_time": os.path.basename(DATA_FILE)
+                "server_time": time.strftime("%Y-%m-%dT%H:%M:%S")
             })
 
         # API: Get all data
@@ -219,12 +243,12 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
             
             # Ensure unique ID
             if not body.get("id"):
-                import time
-                body["id"] = f"c_{int(time.time() * 1000)}"
+                body["id"] = new_id("c")
             
             # Insert at beginning
             db["coffees"].insert(0, body)
-            write_db(db)
+            if not write_db(db):
+                return self.send_error_json("Erro ao gravar no servidor.", 500)
             return self.send_json({"success": True, "coffee": body}, status_code=201)
 
         # API: Add new Water
@@ -234,11 +258,11 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
                 return self.send_error_json("Dados de água inválidos.", 400)
             
             if not body.get("id"):
-                import time
-                body["id"] = f"w_{int(time.time() * 1000)}"
+                body["id"] = new_id("w")
             
             db["waters"].insert(0, body)
-            write_db(db)
+            if not write_db(db):
+                return self.send_error_json("Erro ao gravar no servidor.", 500)
             return self.send_json({"success": True, "water": body}, status_code=201)
 
         # API: Bulk sync / Replace all data (e.g. initial migration or mass save)
@@ -258,7 +282,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
             if new_waters is not None and isinstance(new_waters, list):
                 db["waters"] = new_waters
                 
-            write_db(db)
+            if not write_db(db):
+                return self.send_error_json("Erro ao gravar no servidor.", 500)
             return self.send_json({
                 "success": True,
                 "message": "Dados guardados com sucesso no servidor.",
@@ -269,15 +294,18 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
         if path == "/api/import":
             if isinstance(body, dict) and ("coffees" in body or "waters" in body):
                 db = {
-                    "coffees": body.get("coffees", []),
-                    "waters": body.get("waters", [])
+                    "coffees": body.get("coffees") or [],
+                    "waters": body.get("waters") or []
                 }
             elif isinstance(body, list):
                 db = {"coffees": body, "waters": []}
             else:
                 return self.send_error_json("Formato de importação não reconhecido.", 400)
 
-            write_db(db)
+            if not isinstance(db["coffees"], list) or not isinstance(db["waters"], list):
+                return self.send_error_json("'coffees' e 'waters' têm de ser listas.", 400)
+            if not write_db(db):
+                return self.send_error_json("Erro ao gravar no servidor.", 500)
             return self.send_json({
                 "success": True,
                 "message": "Importação concluída com sucesso no servidor.",
@@ -292,7 +320,7 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
         path = self.get_parsed_path()
         body = self.get_request_body_json()
 
-        if body is None:
+        if body is None or not isinstance(body, dict):
             return self.send_error_json("JSON inválido.", 400)
 
         # Update specific coffee: /api/coffees/<id>
@@ -308,7 +336,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
                     break
             
             if found:
-                write_db(db)
+                if not write_db(db):
+                    return self.send_error_json("Erro ao gravar no servidor.", 500)
                 return self.send_json({"success": True, "coffee": db["coffees"][idx]})
             else:
                 return self.send_error_json(f"Café com ID '{target_id}' não encontrado.", 404)
@@ -325,7 +354,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
                     break
             
             if found:
-                write_db(db)
+                if not write_db(db):
+                    return self.send_error_json("Erro ao gravar no servidor.", 500)
                 return self.send_json({"success": True, "water": db["waters"][idx]})
             else:
                 return self.send_error_json(f"Registo de água com ID '{target_id}' não encontrado.", 404)
@@ -344,7 +374,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
             db["coffees"] = [c for c in db["coffees"] if str(c.get("id")) != target_id]
             
             if len(db["coffees"]) < initial_len:
-                write_db(db)
+                if not write_db(db):
+                    return self.send_error_json("Erro ao gravar no servidor.", 500)
                 return self.send_json({"success": True, "deletedId": target_id})
             else:
                 return self.send_error_json(f"Café com ID '{target_id}' não encontrado.", 404)
@@ -357,7 +388,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
             db["waters"] = [w for w in db["waters"] if str(w.get("id")) != target_id]
             
             if len(db["waters"]) < initial_len:
-                write_db(db)
+                if not write_db(db):
+                    return self.send_error_json("Erro ao gravar no servidor.", 500)
                 return self.send_json({"success": True, "deletedId": target_id})
             else:
                 return self.send_error_json(f"Registo de água com ID '{target_id}' não encontrado.", 404)
@@ -367,14 +399,10 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
     # ==================== STATIC FILE SERVING ====================
     def serve_static_file(self, req_path):
         """Serve static assets from BASE_DIR."""
-        if req_path in ("/", ""):
-            req_path = "/index.html"
+        # Prevent directory traversal / hidden file access
+        file_path, clean_path = resolve_static_path(req_path)
 
-        # Prevent directory traversal attacks
-        clean_path = os.path.normpath(req_path.lstrip("/"))
-        file_path = os.path.join(BASE_DIR, clean_path)
-
-        if not os.path.abspath(file_path).startswith(BASE_DIR):
+        if file_path is None:
             self.send_error_json("Acesso negado.", 403)
             return
 
@@ -406,11 +434,8 @@ class CoffeeTrackerHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Access-Control-Allow-Origin", "*")
-            # Cache static assets slightly except index.html
-            if clean_path == "index.html":
-                self.send_header("Cache-Control", "no-cache")
-            else:
-                self.send_header("Cache-Control", "public, max-age=3600")
+            # Always revalidate so edits to script.js/style.css show up immediately
+            self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(content)
         except Exception as e:

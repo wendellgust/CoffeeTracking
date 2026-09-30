@@ -182,6 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Current local time as "YYYY-MM-DDTHH:mm" (toISOString() alone gives UTC, wrong hour/day)
+    function localNowStr() {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        return now.toISOString().slice(0, 16);
+    }
+
     function setServerStatus(status, details = '') {
         const pill = document.getElementById('server-status-pill');
         if (!pill) return;
@@ -370,10 +377,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const countsByBebida = {};
         const ratingSumByBebida = {};
+        const ratedCountByBebida = {};
         coffees.forEach(c => {
             countsByBebida[c.bebida] = (countsByBebida[c.bebida] || 0) + 1;
             if (c.avaliacao > 0) {
                 ratingSumByBebida[c.bebida] = (ratingSumByBebida[c.bebida] || 0) + Number(c.avaliacao);
+                ratedCountByBebida[c.bebida] = (ratedCountByBebida[c.bebida] || 0) + 1;
             }
         });
 
@@ -381,7 +390,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let maxScore = -1;
         Object.keys(countsByBebida).forEach(b => {
             const count = countsByBebida[b];
-            const avgRating = (ratingSumByBebida[b] || 4) / count;
+            // unrated drinks get a neutral 4.0 instead of being divided by all entries
+            const avgRating = ratedCountByBebida[b] ? ratingSumByBebida[b] / ratedCountByBebida[b] : 4;
             const score = count * 2 + avgRating;
             if (score > maxScore) { maxScore = score; prefName = b; }
         });
@@ -782,7 +792,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const filterType = filterTypeSelect.value;
 
         let filtered = coffees.filter(c => {
-            const matchSearch = c.bebida.toLowerCase().includes(searchTerm) || 
+            const matchSearch = String(c.bebida || '').toLowerCase().includes(searchTerm) || 
                                 (c.lugar && c.lugar.toLowerCase().includes(searchTerm));
             let matchType = true;
             if (filterType === 'casa') matchType = c.tipo === 'casa';
@@ -822,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let starsHTML = '';
         const rating = Number(c.avaliacao || 0);
         if (rating === 0) {
-            starsHTML = `<button type="button" class="btn-rate-badge btn-quick-rate" data-id="${c.id}"><i class="fa-solid fa-star"></i> Avaliar Agora</button>`;
+            starsHTML = `<button type="button" class="btn-rate-badge btn-quick-rate" data-id="${escapeHTML(c.id)}"><i class="fa-solid fa-star"></i> Avaliar Agora</button>`;
         } else {
             for (let i = 1; i <= 5; i++) {
                 if (i <= Math.floor(rating)) starsHTML += `<i class="fa-solid fa-star"></i>`;
@@ -831,21 +841,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const companionsText = Number(c.pessoas || 1) <= 1 ? '<i class="fa-solid fa-user"></i> Sozinho' : `<i class="fa-solid fa-users"></i> Com ${c.pessoas} pessoas`;
+        const companionsText = Number(c.pessoas || 1) <= 1 ? '<i class="fa-solid fa-user"></i> Sozinho' : `<i class="fa-solid fa-users"></i> Com ${escapeHTML(c.pessoas)} pessoas`;
 
         let homeSpecsHTML = '';
         if (isHome) {
             const parts = [];
-            if (c.peso) parts.push(`<strong>Peso:</strong> ${c.peso}g`);
-            if (c.marcaGrao) parts.push(`<strong>Grão:</strong> ${c.marcaGrao}`);
-            if (c.moido !== undefined) parts.push(`<strong>Moído:</strong> ${c.moido ? 'Sim' : 'Não'}${c.grauMoagem ? ' (' + c.grauMoagem + ')' : ''}`);
-            if (c.tempoGasto) parts.push(`<strong>Tempo:</strong> ${c.tempoGasto}`);
-            if (c.quantidadeFeita) parts.push(`<strong>Qtd:</strong> ${c.quantidadeFeita}`);
+            if (c.peso) parts.push(`<strong>Peso:</strong> ${escapeHTML(c.peso)}g`);
+            if (c.marcaGrao) parts.push(`<strong>Grão:</strong> ${escapeHTML(c.marcaGrao)}`);
+            if (c.moido !== undefined) parts.push(`<strong>Moído:</strong> ${c.moido ? 'Sim' : 'Não'}${c.grauMoagem ? ' (' + escapeHTML(c.grauMoagem) + ')' : ''}`);
+            if (c.tempoGasto) parts.push(`<strong>Tempo:</strong> ${escapeHTML(c.tempoGasto)}`);
+            if (c.quantidadeFeita) parts.push(`<strong>Qtd:</strong> ${escapeHTML(c.quantidadeFeita)}`);
             if (parts.length > 0) homeSpecsHTML = `<div class="coffee-home-specs">${parts.join(' • ')}</div>`;
         }
 
         return `
-            <div class="coffee-card" id="card-${c.id}">
+            <div class="coffee-card" id="card-${escapeHTML(c.id)}">
                 <div class="coffee-main-info">
                     <div class="coffee-type-icon ${isHome ? 'type-home' : 'type-outside'}">
                         <i class="fa-solid ${iconClass}"></i>
@@ -868,10 +878,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="coffee-price-tag">${formatEuro(c.preco)}</div>
                     <div class="coffee-rating-stars">${starsHTML}</div>
                     <div class="coffee-actions">
-                        <button class="btn-action btn-edit-coffee" data-id="${c.id}" title="Editar">
+                        <button class="btn-action btn-edit-coffee" data-id="${escapeHTML(c.id)}" title="Editar">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
-                        <button class="btn-action btn-delete btn-delete-coffee" data-id="${c.id}" title="Apagar">
+                        <button class="btn-action btn-delete btn-delete-coffee" data-id="${escapeHTML(c.id)}" title="Apagar">
                             <i class="fa-solid fa-trash-can"></i>
                         </button>
                     </div>
@@ -907,14 +917,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const bottles = (w.ml / BOTTLE_SIZE_ML).toFixed(1);
 
         return `
-            <div class="coffee-card" id="card-w-${w.id}">
+            <div class="coffee-card" id="card-w-${escapeHTML(w.id)}">
                 <div class="coffee-main-info">
                     <div class="coffee-type-icon type-water">
                         <i class="fa-solid fa-bottle-water"></i>
                     </div>
                     <div class="coffee-details">
                         <div class="coffee-title-line">
-                            <span class="coffee-name">${w.ml} ml de Água</span>
+                            <span class="coffee-name">${escapeHTML(w.ml)} ml de Água</span>
                             <span class="badge badge-cyan">${bottles} garrafa(s) de 750ml</span>
                         </div>
                         <div class="coffee-meta">
@@ -925,12 +935,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <div class="coffee-right-info">
-                    <div class="water-amount-tag">${w.ml} ml</div>
+                    <div class="water-amount-tag">${escapeHTML(w.ml)} ml</div>
                     <div class="coffee-actions">
-                        <button class="btn-action btn-edit-water" data-id="${w.id}" title="Editar">
+                        <button class="btn-action btn-edit-water" data-id="${escapeHTML(w.id)}" title="Editar">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
-                        <button class="btn-action btn-delete btn-delete-water" data-id="${w.id}" title="Apagar">
+                        <button class="btn-action btn-delete btn-delete-water" data-id="${escapeHTML(w.id)}" title="Apagar">
                             <i class="fa-solid fa-trash-can"></i>
                         </button>
                     </div>
@@ -940,8 +950,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function escapeHTML(str) {
-        if (!str) return '';
-        return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag));
     }
 
     /* ==========================================================================
@@ -1053,7 +1063,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* WATER QUICK ADD & FORM */
     async function quickAddWater(ml, label) {
-        const nowStr = new Date().toISOString().slice(0, 16);
+        const nowStr = localNowStr();
         const newWater = { id: 'w_' + Date.now(), ml: Number(ml), dataHora: nowStr };
         setServerStatus('saving');
         try {
@@ -1077,9 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalWaterTitle.textContent = 'Registar Consumo de Água';
         waterMlInput.value = 750;
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        waterDataHoraInput.value = now.toISOString().slice(0, 16);
+        waterDataHoraInput.value = localNowStr();
 
         updateWaterCalcPreview();
         modalWater.classList.remove('escondido');
@@ -1114,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleWaterSubmit(e) {
         e.preventDefault();
         const ml = parseInt(waterMlInput.value);
-        const dataHora = waterDataHoraInput.value || new Date().toISOString().slice(0, 16);
+        const dataHora = waterDataHoraInput.value || localNowStr();
         if (isNaN(ml) || ml <= 0) {
             alert('Por favor introduza uma quantidade válida de água em ml.');
             return;
@@ -1178,9 +1186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         editIdInput.value = '';
         modalTitle.textContent = 'Registar Novo Café';
         
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        document.getElementById('data-hora').value = now.toISOString().slice(0, 16);
+        document.getElementById('data-hora').value = localNowStr();
 
         tipoForaRadio.checked = true;
         toggleOriginFields();
@@ -1286,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const bebida = document.getElementById('bebida').value.trim();
         const preco = parseFloat(document.getElementById('preco').value);
-        const dataHora = document.getElementById('data-hora').value || new Date().toISOString().slice(0, 16);
+        const dataHora = document.getElementById('data-hora').value || localNowStr();
         const lugar = document.getElementById('lugar-input').value.trim();
         const tipo = tipoCasaRadio.checked ? 'casa' : 'fora';
         const avaliacao = parseFloat(avaliacaoInput.value || 0);
@@ -1385,18 +1391,32 @@ document.addEventListener('DOMContentLoaded', () => {
     async function importJSON(e) {
         const file = e.target.files[0];
         if (!file) return;
+        e.target.value = ''; // allow re-importing the same file later
         const reader = new FileReader();
         reader.onload = async function(evt) {
             try {
                 const parsed = JSON.parse(evt.target.result);
                 let importedCoffees = [];
                 let importedWaters = [];
-                if (parsed.coffees && parsed.waters) {
-                    importedCoffees = parsed.coffees;
-                    importedWaters = parsed.waters;
-                } else if (Array.isArray(parsed)) {
+                if (Array.isArray(parsed)) {
                     importedCoffees = parsed;
+                } else if (parsed && (Array.isArray(parsed.coffees) || Array.isArray(parsed.waters))) {
+                    importedCoffees = Array.isArray(parsed.coffees) ? parsed.coffees : [];
+                    importedWaters = Array.isArray(parsed.waters) ? parsed.waters : [];
+                } else {
+                    throw new Error('formato não reconhecido (esperado {"coffees": [], "waters": []}).');
                 }
+
+                // Each record needs id + dataHora, otherwise edit/delete and charts break
+                const stamp = Date.now();
+                importedCoffees = importedCoffees.filter(c => c && typeof c === 'object').map((c, i) => ({
+                    ...c, id: c.id || `c_${stamp}_${i}`, dataHora: c.dataHora || localNowStr()
+                }));
+                importedWaters = importedWaters.filter(w => w && typeof w === 'object').map((w, i) => ({
+                    ...w, id: w.id || `w_${stamp}_${i}`, dataHora: w.dataHora || localNowStr()
+                }));
+
+                if (!confirm(`Importar ${importedCoffees.length} cafés e ${importedWaters.length} registos de água? Isto substitui todos os dados atuais.`)) return;
 
                 setServerStatus('saving');
                 try {
